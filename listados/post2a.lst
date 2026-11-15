@@ -1,0 +1,217 @@
+     1                                  ; Johan Barrera - Cod. 1152538
+     2                                  ; Arquitectura de computadores - Unidad 7
+     3                                  ; Compilar desde la raiz: nasm -f bin post2a.asm -o post2a.com
+     4                                  bits 16
+     5                                  cpu 8086
+     6                                  org 100h
+     7 00000000 E99800                  jmp inicio
+     8 00000003 00                      ultimo_scan db 0
+     9 00000004 00                      ultimo_ascii db 0
+    10 00000005 00                      ultimo_raw db 0
+    11 00000006 4A6F68616E20426172-     prompt db 'Johan Barrera | Cod: 1152538',13,10
+    11 0000000F 72657261207C20436F-
+    11 00000018 643A20313135323533-
+    11 00000021 380D0A             
+    12 00000024 417271756974656374-            db 'Arquitectura de computadores | Unidad 7',13,10
+    12 0000002D 75726120646520636F-
+    12 00000036 6D70757461646F7265-
+    12 0000003F 73207C20556E696461-
+    12 00000048 6420370D0A         
+    13 0000004D 504F53543241202D20-            db 'POST2A - Pulse letras, F1-F12 o flechas. ESC termina.',13,10,'$'
+    13 00000056 50756C7365206C6574-
+    13 0000005F 7261732C2046312D46-
+    13 00000068 3132206F20666C6563-
+    13 00000071 6861732E2045534320-
+    13 0000007A 7465726D696E612E0D-
+    13 00000083 0A24               
+    14 00000085 5363616E3A2024          msg_scan db 'Scan: $'
+    15 0000008C 68202041534349493A-     msg_ascii db 'h  ASCII: $'
+    15 00000095 2024               
+    16 00000097 680D0A24                fin_linea db 'h',13,10,'$'
+    17                                  inicio:
+    18 0000009B 0E                          push cs
+    19 0000009C 1F                          pop ds
+    20 0000009D FC                          cld
+    21 0000009E BA[0600]                    mov dx, prompt
+    22 000000A1 B409                        mov ah, 09h
+    23 000000A3 CD21                        int 21h
+    24                                  leer_tecla:
+    25                                      ; Servicio ampliado: permite F11/F12 ademas de teclas clasicas.
+    26 000000A5 B410                        mov ah, 10h
+    27 000000A7 CD16                        int 16h
+    28 000000A9 8826[0300]                  mov [ultimo_scan], ah
+    29 000000AD A2[0500]                    mov [ultimo_raw], al
+    30                                      ; E0h es marcador ampliado, no un caracter ASCII imprimible.
+    31 000000B0 3CE0                        cmp al, 0E0h
+    32 000000B2 7502                        jne guardar_ascii
+    33 000000B4 30C0                        xor al, al
+    34                                  guardar_ascii:
+    35 000000B6 A2[0400]                    mov [ultimo_ascii], al
+    36                                  cp_tecla:
+    37 000000B9 B409                        mov ah, 09h
+    38 000000BB BA[8500]                    mov dx, msg_scan
+    39 000000BE CD21                        int 21h
+    40 000000C0 A0[0300]                    mov al, [ultimo_scan]
+    41 000000C3 E8AB00                      call hex_dos
+    42 000000C6 B409                        mov ah, 09h
+    43 000000C8 BA[8C00]                    mov dx, msg_ascii
+    44 000000CB CD21                        int 21h
+    45 000000CD A0[0400]                    mov al, [ultimo_ascii]
+    46 000000D0 E89E00                      call hex_dos
+    47 000000D3 B409                        mov ah, 09h
+    48 000000D5 BA[9700]                    mov dx, fin_linea
+    49 000000D8 CD21                        int 21h
+    50 000000DA 803E[0300]01                cmp byte [ultimo_scan], 01h
+    51 000000DF 75C4                        jne leer_tecla
+    52 000000E1 E9C200                      jmp salir
+    53                                  
+    54                                  %include "include/comun.inc"
+     1                              <1> ; Rutinas compartidas. Todas las cadenas de estas rutinas terminan en cero.
+     2                              <1> ; Johan Barrera - 1152538 - Arquitectura de computadores.
+     3                              <1> 
+     4                              <1> ; Preparacion BIOS: modo 03h, pagina 0, 80x25 y limpieza con scroll.
+     5                              <1> iniciar_bios:
+     6 000000E4 B80300              <1>     mov ax, 0003h
+     7 000000E7 CD10                <1>     int 10h
+     8 000000E9 B80006              <1>     mov ax, 0600h
+     9 000000EC B707                <1>     mov bh, 07h
+    10 000000EE 31C9                <1>     xor cx, cx
+    11 000000F0 BA4F18              <1>     mov dx, 184Fh
+    12 000000F3 CD10                <1>     int 10h
+    13 000000F5 BE[AB01]            <1>     mov si, identidad
+    14 000000F8 BA0214              <1>     mov dx, 1402h             ; fila 20, columna 2
+    15 000000FB B30B                <1>     mov bl, 0Bh
+    16 000000FD E80C00              <1>     call cadena_bios
+    17 00000100 BE[C801]            <1>     mov si, asignatura
+    18 00000103 BA0215              <1>     mov dx, 1502h
+    19 00000106 B307                <1>     mov bl, 07h
+    20 00000108 E80100              <1>     call cadena_bios
+    21 0000010B C3                  <1>     ret
+    22                              <1> 
+    23                              <1> ; DS:SI cadena, DH fila, DL columna, BL atributo. Pagina cero.
+    24                              <1> ; AH=09h no avanza el cursor: se actualiza DL explicitamente.
+    25                              <1> cadena_bios:
+    26 0000010C 50                  <1>     push ax
+    27 0000010D 53                  <1>     push bx
+    28 0000010E 51                  <1>     push cx
+    29 0000010F 52                  <1>     push dx
+    30 00000110 56                  <1>     push si
+    31 00000111 FC                  <1>     cld
+    32                              <1> .siguiente:
+    33 00000112 AC                  <1>     lodsb
+    34 00000113 84C0                <1>     test al, al
+    35 00000115 7415                <1>     jz .fin
+    36 00000117 50                  <1>     push ax                  ; AH=02h no debe destruir el caracter pendiente
+    37 00000118 B402                <1>     mov ah, 02h
+    38 0000011A 30FF                <1>     xor bh, bh
+    39 0000011C CD10                <1>     int 10h
+    40 0000011E 58                  <1>     pop ax
+    41 0000011F B409                <1>     mov ah, 09h
+    42 00000121 30FF                <1>     xor bh, bh
+    43 00000123 B90100              <1>     mov cx, 1
+    44 00000126 CD10                <1>     int 10h
+    45 00000128 FEC2                <1>     inc dl
+    46 0000012A EBE6                <1>     jmp .siguiente
+    47                              <1> .fin:
+    48 0000012C 5E                  <1>     pop si
+    49 0000012D 5A                  <1>     pop dx
+    50 0000012E 59                  <1>     pop cx
+    51 0000012F 5B                  <1>     pop bx
+    52 00000130 58                  <1>     pop ax
+    53 00000131 C3                  <1>     ret
+    54                              <1> 
+    55                              <1> ; Solo la PREPARACION usa BIOS. El dibujo posterior usa exclusivamente B800h.
+    56                              <1> iniciar_directo:
+    57 00000132 B80300              <1>     mov ax, 0003h            ; establecer formato conocido antes de B800h
+    58 00000135 CD10                <1>     int 10h
+    59 00000137 B402                <1>     mov ah, 02h
+    60 00000139 30FF                <1>     xor bh, bh
+    61 0000013B BA0017              <1>     mov dx, 1700h           ; cursor de hardware fuera de la zona de trabajo
+    62 0000013E CD10                <1>     int 10h
+    63 00000140 B800B8              <1>     mov ax, 0B800h
+    64 00000143 8EC0                <1>     mov es, ax
+    65 00000145 FC                  <1>     cld
+    66 00000146 C3                  <1>     ret
+    67                              <1> 
+    68                              <1> ; AX=atributo:espacio. 2000 palabras = 4000 bytes, sin salir de pagina 0.
+    69                              <1> rellenar:
+    70 00000147 31FF                <1>     xor di, di
+    71 00000149 B9D007              <1>     mov cx, 2000
+    72 0000014C FC                  <1>     cld
+    73 0000014D F3AB                <1>     rep stosw
+    74 0000014F C3                  <1>     ret
+    75                              <1> 
+    76                              <1> ; DS:SI texto, ES:DI destino, AH atributo; no toca el cursor del BIOS.
+    77                              <1> cadena_directa:
+    78 00000150 FC                  <1>     cld
+    79                              <1> .otro:
+    80 00000151 AC                  <1>     lodsb
+    81 00000152 84C0                <1>     test al, al
+    82 00000154 7403                <1>     jz .fin
+    83 00000156 AB                  <1>     stosw
+    84 00000157 EBF8                <1>     jmp .otro
+    85                              <1> .fin:
+    86 00000159 C3                  <1>     ret
+    87                              <1> 
+    88                              <1> ; BL=atributo del pie; ES apunta a B800h.
+    89                              <1> firma_directa:
+    90 0000015A 88DC                <1>     mov ah, bl
+    91 0000015C BF840C              <1>     mov di, (20*80+2)*2
+    92 0000015F BE[AB01]            <1>     mov si, identidad
+    93 00000162 E8EBFF              <1>     call cadena_directa
+    94 00000165 88DC                <1>     mov ah, bl
+    95 00000167 BF240D              <1>     mov di, (21*80+2)*2
+    96 0000016A BE[C801]            <1>     mov si, asignatura
+    97 0000016D E8E0FF              <1>     call cadena_directa
+    98 00000170 C3                  <1>     ret
+    99                              <1> 
+   100                              <1> ; Imprime AL en dos digitos hexadecimales mediante DOS; preserva registros.
+   101                              <1> hex_dos:
+   102 00000171 50                  <1>     push ax
+   103 00000172 53                  <1>     push bx
+   104 00000173 51                  <1>     push cx
+   105 00000174 52                  <1>     push dx
+   106 00000175 88C3                <1>     mov bl, al
+   107 00000177 B104                <1>     mov cl, 4
+   108 00000179 D2E8                <1>     shr al, cl
+   109 0000017B E81800              <1>     call nibble_ascii
+   110 0000017E 88C2                <1>     mov dl, al
+   111 00000180 B402                <1>     mov ah, 02h
+   112 00000182 CD21                <1>     int 21h
+   113 00000184 88D8                <1>     mov al, bl
+   114 00000186 240F                <1>     and al, 0Fh
+   115 00000188 E80B00              <1>     call nibble_ascii
+   116 0000018B 88C2                <1>     mov dl, al
+   117 0000018D B402                <1>     mov ah, 02h
+   118 0000018F CD21                <1>     int 21h
+   119 00000191 5A                  <1>     pop dx
+   120 00000192 59                  <1>     pop cx
+   121 00000193 5B                  <1>     pop bx
+   122 00000194 58                  <1>     pop ax
+   123 00000195 C3                  <1>     ret
+   124                              <1> nibble_ascii:
+   125 00000196 240F                <1>     and al, 0Fh
+   126 00000198 3C09                <1>     cmp al, 9
+   127 0000019A 7603                <1>     jbe .decimal
+   128 0000019C 0437                <1>     add al, 'A'-10
+   129 0000019E C3                  <1>     ret
+   130                              <1> .decimal:
+   131 0000019F 0430                <1>     add al, '0'
+   132 000001A1 C3                  <1>     ret
+   133                              <1> 
+   134                              <1> esperar_salir:
+   135 000001A2 B407                <1>     mov ah, 07h
+   136 000001A4 CD21                <1>     int 21h
+   137                              <1> salir:
+   138 000001A6 B8004C              <1>     mov ax, 4C00h
+   139 000001A9 CD21                <1>     int 21h
+   140                              <1> 
+   141 000001AB 4A6F68616E20426172- <1> identidad db 'Johan Barrera | Cod: 1152538',0
+   141 000001B4 72657261207C20436F- <1>
+   141 000001BD 643A20313135323533- <1>
+   141 000001C6 3800                <1>
+   142 000001C8 417271756974656374- <1> asignatura db 'Arquitectura de computadores | Unidad 7',0
+   142 000001D1 75726120646520636F- <1>
+   142 000001DA 6D70757461646F7265- <1>
+   142 000001E3 73207C20556E696461- <1>
+   142 000001EC 64203700            <1>
